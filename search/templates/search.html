@@ -1,4 +1,5 @@
 {% load static %}
+{% load filters %}
 
 <!DOCTYPE html>
 <html>
@@ -35,55 +36,55 @@
                         <div class="form-group">
                             <label class="control-label">Date:</label>
                             <div class="input-group date">
-                                <input type="text" id="filter-start-date" name="filter-start-date" class="form-control" value="${startDate}">
+                                <input type="text" id="filter-start-date" name="filter-start-date" class="form-control" value="{{ form.startDate }}">
                                 <span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
                             </div>
                             <div class="input-group">
                                 ~
                             </div>
                             <div class="input-group date">
-                                <input type="text" id="filter-end-date" name="filter-end-date" class="form-control" value="${endDate}">
+                                <input type="text" id="filter-end-date" name="filter-end-date" class="form-control" value="{{ form.endDate }}">
                                 <span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="control-label">Fields:</label>
                             <div class="input-group">
-                                <#list searchFields as field>
+                                {% for field in form.searchFields %}
                                     <div class="checkbox checkbox-primary">
-                                        <input <#if (fields?index_of(field)>=0)>checked</#if> name="filter-fields" value="${field}" type="checkbox">
+                                        <input {% if field in form.fields %}checked{% endif %} name="filter-fields" value="{{ field }}" type="checkbox">
                                         <label for="checkbox1">
-                                            ${searchFieldsName[field?index]}
+                                            {{ searchFieldsName|index:forloop.counter0 }}
                                         </label>
                                     </div>
-                                </#list>
+                                {% endfor %}
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="control-label">Sort:</label>
                             <div class="input-group">
                                 <select class="form-control m-b" id="filter-sort" name="filter-sort">
-                                    <option value="_score" <#if sort == "_score">selected</#if>>Score</option>
-                                    <option value="date" <#if sort == "date">selected</#if>>Date</option>
+                                    <option value="_score" {% if form.sort == "_sort" %}selected{% endif %}>Score</option>
+                                    <option value="date" {% if form.sort == 'date' %}selected{% endif %}>Date</option>
                                 </select>
                             </div>
                         </div>
 
-                        <#if buckets??>
+                        {% if results.buckets %}
                             <div class="form-group">
                                 <label class="control-label">Category:</label>
                                 <div class="input-group">
-                                    <#list buckets as category>
+                                    {% for category in results.buckets %}
                                         <div class="checkbox checkbox-primary">
-                                            <input <#if (categorys?index_of(category.getKeyAsString())>=0)>checked</#if> name="filter-categorys" value="${category.getKeyAsString()}" type="checkbox">
+                                            <input {% if category.key in form.categorys %}checked{% endif %} name="filter-categorys" value="{{ category.key }}" type="checkbox">
                                             <label for="checkbox1">
-                                                ${category.getKeyAsString()} (${category.getDocCount()})
+                                                {{ category.key }} ({{ category.doc_count }})
                                             </label>
                                         </div>
-                                    </#list>
+                                    {% endfor %}
                                 </div>
                             </div>
-                        </#if>
+                        {% endif %}
 
                         <button class="btn btn-success btn-block" id="btn-apply">Apply</button>
                     </div>
@@ -94,78 +95,68 @@
                     <div class="col-lg-12">
                         <div class="hpanel">
                             <div class="panel-body">
-                                <form name="searchForm" id="searchForm" method="get" action="./search">
+                                <form name="searchForm" id="searchForm" method="get" action="/search">
                                     <div class="input-group">
-                                        <input class="form-control" type="text" id="query" name="query" value="${query}" placeholder="Search..">
+                                        <input class="form-control" type="text" id="query" name="query" value="{{ form.query }}" placeholder="Search..">
                                         <div class="input-group-btn">
                                             <button class="btn btn-default" id="search"><i class="fa fa-search"></i></button>
                                         </div>
-                                        <input type="hidden" name="pageNum" id="page-num" value="${pageNum}">
-                                        <input type="hidden" name="sort" id="sort" value="${sort}">
-                                        <input type="hidden" name="fields" id="fields" value="${fields}">
-                                        <input type="hidden" name="categorys" id="categorys" value="${categorys}">
-                                        <input type="hidden" name="startDate" id="start-date" value="${startDate}">
-                                        <input type="hidden" name="endDate" id="end-date" value="${endDate}">
+                                        <input type="hidden" name="pageNum" id="page-num" value="{{ pageNum }}">
+                                        <input type="hidden" name="sort" id="sort" value="{{ sort }}">
+                                        <input type="hidden" name="fields" id="fields" value="{{ fields }}">
+                                        <input type="hidden" name="categorys" id="categorys" value="{{ categorys }}">
+                                        <input type="hidden" name="startDate" id="start-date" value="{{ startDate }}">
+                                        <input type="hidden" name="endDate" id="end-date" value="{{ endDate }}">
                                     </div>
                                 </form>
                                 <div style="padding-top: 10px;">
-                                    Search Results for <strong>Blogs</strong>  (${totalCount} results)
+                                    Search Results for <strong>{{ index }}</strong>  ({{ results.totalCount }} results)
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="row">
-
+                {% if results %}
                     <div class="col-lg-12">
-                        <#if results??>
-                            <#list results as item>
+                            {% for item in results.items %}
                                 <div class="hpanel filter-item">
                                     <a href="#">
                                     <div class="panel-body">
                                         <div class="pull-right text-right">
-                                                <small class="stat-label">${item.sourceAsMap()['date']}</small>
+                                                <small class="stat-label">{{ item.date }}</small>
 
                                         </div>
                                         <h4 class="m-b-xs">
-                                            <#if item.highlightFields()["title"]??>
-                                                ${item.highlightFields()["title"].fragments()[0]}
-                                            <#else>
-                                                ${item.sourceAsMap()['title']}
-                                            </#if>
+                                            {{ item.title }}
                                         </h4>
                                         <p>
-                                        ${item.sourceAsMap()['author']} / ${item.sourceAsMap()['category']}
+                                        {{ item.author }} / {{ item.category }}
                                         </p>
                                         <p>
-                                            <#if item.highlightFields()["desc"]??>
-                                                ${item.highlightFields()["desc"].fragments()[0]}
-                                            <#else>
-                                                ${item.sourceAsMap()['desc']}
-                                            </#if>
+                                            {{ item.desc }}
                                         </p>
                                     </div>
                                     </a>
                                 </div>
-                            </#list>
-
+                            {% endfor %}
                             <div class="text-center">
                                 <ul class="pagination">
-                                    <li class="paginate_button previous <#if pageNum<=1>disabled</#if>">
-                                        <a href="javascript:void(0);" onclick="goPage(${pageNum-1});" aria-controls="example1" data-dt-idx="0" tabindex="0">Previous</a>
+                                    <li class="paginate_button previous {% if form.pageNum|is_exits_previous_page:1 %}disabled{% endif %}">
+                                        <a href="javascript:void(0);" onclick="goPage({{ form.pageNum|previous_page }});" aria-controls="example1" data-dt-idx="0" tabindex="0">Previous</a>
                                     </li>
-                                    <#list 1..pageCount as i >
-                                        <li class="paginate_button <#if pageNum==i>active</#if>">
-                                            <a href="javascript:void(0);" onclick="goPage(${i});"  aria-controls="example1" data-dt-idx="1" tabindex="0">${i}</a>
+                                    {% for page in results.pages %}
+                                        <li class="paginate_button {% if form.pageNum|is_active_page:page %}active{% endif %}">
+                                            <a href="javascript:void(0);" onclick="goPage({{ page }});"  aria-controls="example1" data-dt-idx="1" tabindex="0">{{ page }}</a>
                                         </li>
-                                    </#list>
+                                    {% endfor %}
 
-                                    <li class="paginate_button next <#if (pageNum>=pageCount)>disabled</#if>">
-                                        <a href="javascript:void(0);" onclick="goPage(${pageNum+1});" aria-controls="example1" data-dt-idx="6" tabindex="0">Next</a>
+                                    <li class="paginate_button next {% if form.pageNum|is_exits_next_page:results.pageCount %}disabled{% endif %}">
+                                        <a href="javascript:void(0);" onclick="goPage({{ form.pageNum|next_page }});" aria-controls="example1" data-dt-idx="6" tabindex="0">Next</a>
                                     </li>
                                 </ul>
                             </div>
-                        </#if>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -226,7 +217,10 @@
             });
         });
 
-        $('.input-group.date').datepicker();
+        $('.input-group.date').datepicker({
+            format: 'yyyy.mm.dd',
+            autoclose: 'true'
+        });
 
         var search = function() {
             document.searchForm.submit();
