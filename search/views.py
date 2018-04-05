@@ -5,8 +5,8 @@ import elasticsearch
 
 def search(request):
     query = request.GET.get('query')
-    sort = request.GET.get('sort')
-    pageNum = request.GET.get('pageNum')
+    sort = request.GET.get('sort', '_score')
+    pageNum = request.GET.get('pageNum', 0)
     fields = request.GET.get('fields')
     categorys = request.GET.get('categorys')
     startDate = request.GET.get('startDate')
@@ -19,55 +19,36 @@ def search(request):
     searchFields = 'title,desc,author'
     searchFieldsName = ['Title', 'Desc', 'Author']
 
-    if startDate == '' :
-        startDate = (datetime.now() - timedelta(days=365)).strftime('%Y.%m.%d')
-
     if endDate == '' :
         endDate = datetime.today().strftime('%Y.%m.%d')
+
+    if startDate == '' :
+        startDate = (datetime.combine(datetime.strptime(endDate, "%Y.%m.%d").date(), datetime.min.time()) - timedelta(days=365)).strftime('%Y.%m.%d')
 
     if fields == '' :
         fields = searchFields
 
-    form = {'query' : query, 'sort' : sort, 'pageNum' : pageNum, 'fields' : fields, 'categorys' : categorys, 'startDate' : startDate, 'endDate' : endDate, 'searchFields' : fields.split(',')}
+    form = {'query' : query, 'sort' : sort, 'pageNum' : pageNum, 'fields' : fields, 'categorys' : categorys, 'startDate' : startDate, 'endDate' : endDate, 'searchFields' : searchFields.split(',')}
 
     if query is not None:
         es_client = elasticsearch.Elasticsearch("localhost:9200")
 
-        # Set sort query
-        sortQuery = ''
-        if sort == 'date' :
-            sortQuery = {'date': 'desc'}
-        else :
-            sortQuery = {'_score': 'desc'}
+        # Make sort query
+        sortQuery = sort_query(sort)
 
-        # Set date query
-        dateQuery = ''
-        if startDate != '' and endDate != '' :
-            dateQuery = {'gte': startDate, 'lte': endDate}
-        elif startDate != '' :
-            dateQuery = {'gte': startDate}
-        elif endDate != '' :
-            dateQuery = {'lte': endDate}
+        # Make date query
+        dateQuery = date_query(startDate, endDate)
 
-        # Set range query
-        rangeQuery = ''
-        if dateQuery != '' :
-            rangeQuery = {'date': dateQuery}
+        # Make range query
+        rangeQuery = range_query(dateQuery)
 
-        # Set must query
-        mustQuery = ''
-        if rangeQuery != '' :
-            mustQuery =[{'range': rangeQuery}, {'multi_match': {'query': query, 'fields': fields.split(',')}}]
-        else :
-            mustQuery = [{'multi_match': {'query': query, 'fields': fields.split(',')}}]
+        # Make must query
+        mustQuery = must_query(rangeQuery, fields, query)
 
-        # Set query
-        searchQuery = ''
-        if categorys != '' :
-            searchQuery = {'must': mustQuery, 'filter': {'terms': {'category': categorys.split(',')}}}
-        else :
-            searchQuery = {'must': mustQuery}
+        # Make search query
+        searchQuery = search_query(categorys, mustQuery)
 
+        print searchQuery
         docs = es_client.search(index=index,
                                 doc_type=type,
                                 from_=from_,
@@ -112,3 +93,58 @@ def search(request):
 
         results = {'items' : items, 'totalCount' : docs['hits']['total'], 'pageCount' : pageCount, 'pages' : pages, 'buckets' : docs['aggregations']["group_by_category"]["buckets"]}
     return render(request, 'search.html' , {'form' : form, 'index' : index, 'searchFieldsName' : searchFieldsName, 'results' : results})
+
+# Make sort query
+def sort_query(sort) :
+    value = '';
+
+    if sort == 'date':
+        value = {'date': 'desc'}
+    else:
+        value = {'_score': 'desc'}
+
+    return value
+
+# Make date query
+def date_query(startDate, endDate):
+    value = '';
+
+    if startDate != '' and endDate != '':
+        value = {'gte': startDate, 'lte': endDate}
+    elif startDate != '':
+        value = {'gte': startDate}
+    elif endDate != '':
+        value = {'lte': endDate}
+
+    return value
+
+# Make range query
+def range_query(dateQuery):
+    value = '';
+
+    if dateQuery != '':
+        value = {'date': dateQuery}
+
+    return value
+
+# Make must query
+def must_query(rangeQuery, fields, query):
+    value = '';
+
+    if rangeQuery != '':
+        value = [{'range': rangeQuery}, {'multi_match': {'query': query, 'fields': fields.split(',')}}]
+    else:
+        value = [{'multi_match': {'query': query, 'fields': fields.split(',')}}]
+
+    return value
+
+# Make search query
+def search_query(categorys, mustQuery):
+    value = '';
+
+    if categorys != '':
+        value = {'must': mustQuery, 'filter': {'terms': {'category': categorys.split(',')}}}
+    else:
+        value = {'must': mustQuery}
+
+    return value
