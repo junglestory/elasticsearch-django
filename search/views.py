@@ -4,20 +4,22 @@ import elasticsearch
 
 
 def search(request):
-    query = request.GET.get('query')
+    query = request.GET.get('query', '')
     sort = request.GET.get('sort', '_score')
     pageNum = request.GET.get('pageNum', 0)
-    fields = request.GET.get('fields')
-    categorys = request.GET.get('categorys')
-    startDate = request.GET.get('startDate')
-    endDate = request.GET.get('endDate')
+    fields = request.GET.get('fields', '')
+    categorys = request.GET.get('categorys', '')
+    startDate = request.GET.get('startDate', '')
+    endDate = request.GET.get('endDate', '')
 
     index = "blogs"
     type = "blog"
     perPage = 10;
     from_ = (int(pageNum)-1) * int(perPage)
+    totalCount = 0;
     searchFields = 'title,desc,author'
     searchFieldsName = ['Title', 'Desc', 'Author']
+    results = {}
 
     if endDate == '' :
         endDate = datetime.today().strftime('%Y.%m.%d')
@@ -30,7 +32,7 @@ def search(request):
 
     form = {'query' : query, 'sort' : sort, 'pageNum' : pageNum, 'fields' : fields, 'categorys' : categorys, 'startDate' : startDate, 'endDate' : endDate, 'searchFields' : searchFields.split(',')}
 
-    if query is not None:
+    if query != '':
         es_client = elasticsearch.Elasticsearch("localhost:9200")
 
         # Make sort query
@@ -84,6 +86,8 @@ def search(request):
         for hits in docs['hits']['hits']:
             items.append(hits['_source'])
 
+        totalCount = docs['hits']['total']
+
         pageCount = ((docs['hits']['total'] - 1) / perPage) + 1
         pages = []
 
@@ -91,8 +95,8 @@ def search(request):
             for i in range(pageCount):
                 pages.append(i+1)
 
-        results = {'items' : items, 'totalCount' : docs['hits']['total'], 'pageCount' : pageCount, 'pages' : pages, 'buckets' : docs['aggregations']["group_by_category"]["buckets"]}
-    return render(request, 'search.html' , {'form' : form, 'index' : index, 'searchFieldsName' : searchFieldsName, 'results' : results})
+        results = {'items' : items, 'pageCount' : pageCount, 'pages' : pages, 'buckets' : docs['aggregations']["group_by_category"]["buckets"]}
+    return render(request, 'search.html' , {'form' : form, 'index' : index, 'searchFieldsName' : searchFieldsName, 'totalCount' : totalCount, 'results' : results})
 
 # Make sort query
 def sort_query(sort) :
